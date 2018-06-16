@@ -4,18 +4,18 @@
 
 import pygame
 import pygame.locals
-import time
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 400
 BACKGROUND_COLOR = (0, 0, 0)
-FPS = 120
+FPS = 60
 BALL_SIZE = 15
 BALL_COLOR = (255, 255, 255)
 INITIAL_X_POSITION = WINDOW_WIDTH/2
 INITIAL_Y_POSITION = WINDOW_HEIGHT/2
 INITIAL_X_SPEED = 3
 INITIAL_Y_SPEED = 3
+RACKET_HEIGHT = 80
 
 class Board(object):
     """
@@ -61,15 +61,30 @@ class PongGame(object):
                          BALL_COLOR,
                          INITIAL_X_SPEED,
                          INITIAL_Y_SPEED)
-        self.player1 = Racket(width=10, height=80, x=0, y=height/2)
+
+        self.player1 = Racket(width=10,
+                              height=RACKET_HEIGHT,
+                              x=0,
+                              y=height/2 - 40)
+
+        self.player2 = Racket(width=10,
+                              height=RACKET_HEIGHT,
+                              x=width-10,
+                              y=height/2 - 40)
+
+        self.ai = Ai(self.player2, self.ball)
+        self.judge = Judge(self.board, self.ball, self.player2, self.ball)
 
     def run(self):
         """Główna pętla programu"""
         while not self.handle_events():
             # działaj w pętli do momentu otrzymania sygnału do wyjścia
-            self.ball.move(self.board)
+            self.ball.move(self.board, self.player1, self.player2)
             self.board.draw(self.ball,
-                            self.player1)
+                            self.player1,
+                            self.player2,
+                            self.judge)
+            self.ai.move()
             self.fps_clock.tick(FPS)
 
     def handle_events(self):
@@ -123,10 +138,10 @@ class Ball(Drawable):
 
     def reset(self):
         """
-        Ustawia piłeczkę w położeniu początkowym i odwraca wektor prędkości w osi Y
+        Ustawia piłeczkę w położeniu początkowym i odwraca wektor prędkości w osi X
         """
-        self.rect.move(self.start_x, self.start_y)
-        self.bounce_y()
+        self.rect.x, self.rect.y = self.start_x, self.start_y
+        self.bounce_x()
 
     def move(self, board, *args):
         """
@@ -134,9 +149,6 @@ class Ball(Drawable):
         """
         self.rect.x += self.x_speed
         self.rect.y += self.y_speed
-
-        if self.rect.x < 0 or self.rect.x > board.surface.get_width()-BALL_SIZE:
-            self.bounce_x()
 
         if self.rect.y < 0 or self.rect.y > board.surface.get_height()-BALL_SIZE:
             self.bounce_y()
@@ -163,6 +175,66 @@ class Racket(Drawable):
         if abs(delta) > self.max_speed:
             delta = self.max_speed if delta > 0 else -self.max_speed
         self.rect.y += delta
+
+
+class Ai(object):
+    """
+    Przeciwnik, steruje swoją rakietką na podstawie obserwacji piłeczki.
+    """
+    def __init__(self, racket, ball):
+        self.ball = ball
+        self.racket = racket
+
+    def move(self):
+        y = self.ball.rect.centery - RACKET_HEIGHT/2
+        self.racket.move(y)
+
+
+class Judge(object):
+    """
+    Sędzia gry
+    """
+
+    def __init__(self, board, ball, *args):
+        self.ball = ball
+        self.board = board
+        self.rackets = args
+        self.score = [0, 0]
+
+        # Przed pisaniem tekstów, musimy zainicjować mechanizmy wyboru fontów PyGame
+        pygame.font.init()
+        font_path = pygame.font.match_font('arial')
+        self.font = pygame.font.Font(font_path, 64)
+
+    def update_score(self, board_width):
+        """
+        Jeśli trzeba przydziela punkty i ustawia piłeczkę w początkowym położeniu.
+        """
+        if self.ball.rect.x < 0:
+            self.score[1] += 1
+            self.ball.reset()
+        elif self.ball.rect.x > board_width - BALL_SIZE:
+            self.score[0] += 1
+            self.ball.reset()
+
+    def draw_text(self, surface,  text, x, y):
+        """
+        Rysuje wskazany tekst we wskazanym miejscu
+        """
+                                # text, antialias, color
+        text = self.font.render(text, True, (150, 150, 150))
+        rect = text.get_rect()
+        rect.center = x, y
+        surface.blit(text, rect)
+
+    def draw_on(self, surface):
+        """
+        Aktualizuje i rysuje wyniki
+        """
+        height = self.board.surface.get_height()
+        width = self.board.surface.get_width()
+        self.update_score(width)
+        self.draw_text(surface, "{} : {}".format(self.score[0], self.score[1]), width/2, 30)
 
 
 if __name__ == "__main__":
