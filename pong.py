@@ -4,18 +4,24 @@
 
 import pygame
 import pygame.locals
+import time
 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 400
 BACKGROUND_COLOR = (0, 0, 0)
-FPS = 60
+FPS = 120
 BALL_SIZE = 15
 BALL_COLOR = (255, 255, 255)
 INITIAL_X_POSITION = WINDOW_WIDTH/2
 INITIAL_Y_POSITION = WINDOW_HEIGHT/2
 INITIAL_X_SPEED = 3
 INITIAL_Y_SPEED = 3
-RACKET_HEIGHT = 80
+P1_MAX_SPEED = 10
+P1_RACKET_SIZE = 80
+P1_RACKET_COLOR = (255, 255, 255)
+P2_MAX_SPEED = 10
+P2_RACKET_SIZE = 80
+P2_RACKET_COLOR = (255, 255, 255)
 
 class Board(object):
     """
@@ -62,15 +68,19 @@ class PongGame(object):
                          INITIAL_X_SPEED,
                          INITIAL_Y_SPEED)
 
-        self.player1 = Racket(width=10,
-                              height=RACKET_HEIGHT,
-                              x=0,
-                              y=height/2 - 40)
+        self.player1 = Racket(10,
+                              P1_RACKET_SIZE,
+                              0,
+                              height/2 - P1_RACKET_SIZE/2,
+                              P1_RACKET_COLOR,
+                              P1_MAX_SPEED)
 
-        self.player2 = Racket(width=10,
-                              height=RACKET_HEIGHT,
-                              x=width-10,
-                              y=height/2 - 40)
+        self.player2 = Racket(10,
+                              P2_RACKET_SIZE,
+                              width - 10,
+                              height/2 - P2_RACKET_SIZE/2,
+                              P2_RACKET_COLOR,
+                              P2_MAX_SPEED)
 
         self.ai = Ai(self.player2, self.ball)
         self.judge = Judge(self.board, self.ball, self.player2, self.ball)
@@ -94,9 +104,9 @@ class PongGame(object):
                 pygame.quit()
                 return True
 
-                if event.type == pygame.locals.MOUSEMOTION:
-                    x, y = event.pos
-                    self.player1.move(y)
+            if event.type == pygame.locals.MOUSEMOTION:
+                x, y = event.pos
+                self.player1.move(y)
 
 
 class Drawable(object):
@@ -162,7 +172,7 @@ class Racket(Drawable):
     Rakietka, porusza się w osi X z ograniczeniem prędkości.
     """
 
-    def __init__(self, width, height, x, y, color=(255, 255, 255), max_speed=10):
+    def __init__(self, width, height, x, y, color, max_speed):
         super(Racket, self).__init__(width, height, x, y, color)
         self.max_speed = max_speed
         self.surface.fill(color)
@@ -186,7 +196,7 @@ class Ai(object):
         self.racket = racket
 
     def move(self):
-        y = self.ball.rect.centery - RACKET_HEIGHT/2
+        y = self.ball.rect.centery - P2_RACKET_SIZE/2
         self.racket.move(y)
 
 
@@ -213,9 +223,11 @@ class Judge(object):
         if self.ball.rect.x < 0:
             self.score[1] += 1
             self.ball.reset()
+            time.sleep(1)
         elif self.ball.rect.x > board_width - BALL_SIZE:
             self.score[0] += 1
             self.ball.reset()
+            time.sleep(1)
 
     def draw_text(self, surface,  text, x, y):
         """
@@ -234,7 +246,8 @@ class Judge(object):
         height = self.board.surface.get_height()
         width = self.board.surface.get_width()
         self.update_score(width)
-        self.draw_text(surface, "{} : {}".format(self.score[0], self.score[1]), width/2, 30)
+        self.draw_text(surface, "{} : {}".format(self.score[0],
+                                                 self.score[1]), width/2, 30)
 
 
 if __name__ == "__main__":
