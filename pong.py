@@ -5,23 +5,27 @@
 import pygame
 import pygame.locals
 import time
+import configparser
 
-WINDOW_WIDTH = 800
-WINDOW_HEIGHT = 400
-BACKGROUND_COLOR = (0, 0, 0)
-FPS = 240
-BALL_SIZE = 15
-BALL_COLOR = (255, 255, 255)
-INITIAL_X_POSITION = WINDOW_WIDTH/2
-INITIAL_Y_POSITION = WINDOW_HEIGHT/2
-INITIAL_X_SPEED = 3
-INITIAL_Y_SPEED = 3
-P1_MAX_SPEED = 10
-P1_RACKET_SIZE = 80
-P1_RACKET_COLOR = (255, 255, 255)
-P2_MAX_SPEED = 10
-P2_RACKET_SIZE = 80
-P2_RACKET_COLOR = (255, 255, 255)
+
+def load_config(filename):
+    config = configparser.ConfigParser()
+
+    # don't convert option names to lowercase,
+    # see configparser.RawConfigParser()
+    config.optionxform = str
+    config.read(filename)
+
+    for section in config:
+        variables = dict(config[section])
+        for key in variables:
+            try:
+                variables[key] = int(variables[key])
+            except ValueError:
+                variables[key] = \
+                list(map(int,variables[key].replace(' ', '').split(',')))
+        globals().update(variables)
+
 
 class Board(object):
     """
@@ -62,8 +66,8 @@ class PongGame(object):
         self.fps_clock = pygame.time.Clock()
         self.ball = Ball(BALL_SIZE,
                          BALL_SIZE,
-                         INITIAL_X_POSITION,
-                         INITIAL_Y_POSITION,
+                         WINDOW_WIDTH/2,
+                         WINDOW_HEIGHT/2,
                          BALL_COLOR,
                          INITIAL_X_SPEED,
                          INITIAL_Y_SPEED)
@@ -254,5 +258,6 @@ class Judge(object):
 
 
 if __name__ == "__main__":
+    load_config('config.ini')
     game = PongGame(WINDOW_WIDTH, WINDOW_HEIGHT)
     game.run()
