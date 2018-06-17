@@ -9,7 +9,7 @@ import time
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 400
 BACKGROUND_COLOR = (0, 0, 0)
-FPS = 120
+FPS = 240
 BALL_SIZE = 15
 BALL_COLOR = (255, 255, 255)
 INITIAL_X_POSITION = WINDOW_WIDTH/2
@@ -116,7 +116,8 @@ class Drawable(object):
         self.width = width
         self.height = height
         self.color = color
-        self.surface = pygame.Surface((width, height), pygame.SRCALPHA, 32).convert_alpha()
+        self.surface = pygame.Surface((width, height),
+                                      pygame.SRCALPHA, 32).convert_alpha()
         self.rect = self.surface.get_rect(x=x, y=y)
 
     def draw_on(self, surface):
@@ -184,7 +185,9 @@ class Racket(Drawable):
         delta = y - self.rect.y
         if abs(delta) > self.max_speed:
             delta = self.max_speed if delta > 0 else -self.max_speed
-        self.rect.y += delta
+        if (self.rect.y + delta <= WINDOW_HEIGHT - self.height and
+            self.rect.y + delta >= 0):
+            self.rect.y += delta
 
 
 class Ai(object):
@@ -196,7 +199,7 @@ class Ai(object):
         self.racket = racket
 
     def move(self):
-        y = self.ball.rect.centery - P2_RACKET_SIZE/2
+        y = self.ball.rect.centery - self.racket.height/2
         self.racket.move(y)
 
 
