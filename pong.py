@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # coding=utf-8
 
-
 import pygame
 import pygame.locals
 import time
 import configparser
+import sys
 
 
 def load_config(filename):
+    """Loads config file"""
     config = configparser.ConfigParser()
 
     # don't convert option names to lowercase,
@@ -28,38 +29,27 @@ def load_config(filename):
 
 
 class Board(object):
-    """
-    Plansza do gry. Odpowiada za rysowanie okna gry.
-    """
+    """Game's board. Draws everything"""
 
     def __init__(self, width, height):
-        """
-        Konstruktor planszy do gry. Przygotowuje okienko gry.
-
-        :param width:
-        :param height:
-        """
+        """Game window constructor. Size in pixels"""
         self.surface = pygame.display.set_mode((width, height))
         pygame.display.set_caption('Simple Pong')
 
     def draw(self, *args):
-        """
-        Rysuje okno gry
+        """Draw game window.
 
-        :param args: lista obiektów do narysowania
+        :param args: list of objects to draw
         """
         self.surface.fill(BACKGROUND_COLOR)
         for drawable in args:
             drawable.draw_on(self.surface)
 
-        # dopiero w tym miejscu następuje fatyczne rysowanie
-        # w oknie gry, wcześniej tylko ustalaliśmy co i jak ma zostać narysowane
         pygame.display.update()
 
 
 class PongGame(object):
-    """Łączy wszystkie elementy gry w całość."""
-
+    """Main game object"""
     def __init__(self, width, height):
         pygame.init()
         self.board = Board(width, height)
@@ -84,33 +74,75 @@ class PongGame(object):
                               width - 10,
                               height/2 - P2_RACKET_SIZE/2,
                               P2_RACKET_COLOR,
-                              P2_MAX_SPEED)
+                              #P2_MAX_SPEED)
+                              1)
 
-        self.ai = Ai(self.player2, self.ball)
+        if OPPONENT == 1: self.ai = Ai(self.player2, self.ball)
         self.judge = Judge(self.board, self.ball, self.player2, self.ball)
+        self.fps = FPS[7]
 
     def run(self):
-        """Główna pętla programu"""
+        """Main loop"""
+        self.board.draw(self.ball,
+                        self.player1,
+                        self.player2,
+                        self.judge)
+        time.sleep(1)
         while not self.handle_events():
-            # działaj w pętli do momentu otrzymania sygnału do wyjścia
             self.ball.move(self.board, self.player1, self.player2)
             self.board.draw(self.ball,
                             self.player1,
                             self.player2,
                             self.judge)
-            self.ai.move()
-            self.fps_clock.tick(FPS)
+            if OPPONENT == 1: self.ai.move()
+            pressed_keys = pygame.key.get_pressed()
+            self.player1.move_with_keys()
+            if pressed_keys[pygame.K_1]: self.fps = FPS[0]
+            if pressed_keys[pygame.K_2]: self.fps = FPS[1]
+            if pressed_keys[pygame.K_3]: self.fps = FPS[2]
+            if pressed_keys[pygame.K_4]: self.fps = FPS[3]
+            if pressed_keys[pygame.K_5]: self.fps = FPS[4]
+            if pressed_keys[pygame.K_6]: self.fps = FPS[5]
+            if pressed_keys[pygame.K_7]: self.fps = FPS[6]
+            if pressed_keys[pygame.K_8]: self.fps = FPS[7]
+            if pressed_keys[pygame.K_9]: self.fps = FPS[8]
+            if pressed_keys[pygame.K_r]:
+                self.judge.reset()
+            self.fps_clock.tick(self.fps)
 
     def handle_events(self):
-        """Handle system events. Return True if pygame returns quit event"""
+        """Handle system events like quit or pause"""
         for event in pygame.event.get():
-            if event.type == pygame.locals.QUIT:
+            if (event.type == pygame.locals.QUIT or
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 pygame.quit()
                 return True
 
-            if event.type == pygame.locals.MOUSEMOTION:
-                x, y = event.pos
-                self.player1.move(y)
+            if OPPONENT == 0:
+                if event.type == pygame.locals.MOUSEMOTION:
+                    x, y = event.pos
+                    self.player2.move_with_mouse(y)
+
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                self.pause()
+
+    def pause(self):
+        """Pause game, use SPACE button by default"""
+        pause_text = "PAUSE"
+        self.judge.draw_text(self.board.surface,
+                             pause_text,
+                             WINDOW_WIDTH/2,
+                             WINDOW_HEIGHT/2)
+        pygame.display.update()
+
+        while True:
+            event = pygame.event.wait()
+            if (event.type == pygame.locals.QUIT or
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                return
 
 
 class Drawable(object):
@@ -140,28 +172,20 @@ class Ball(Drawable):
         self.start_y = y
 
     def bounce_y(self):
-        """
-        Odwraca wektor prędkości w osi Y
-        """
+        """Reverse y_speed"""
         self.y_speed *= -1
 
     def bounce_x(self):
-        """
-        Odwraca wektor prędkości w osi X
-        """
+        """Reverse x_speed"""
         self.x_speed *= -1
 
     def reset(self):
-        """
-        Ustawia piłeczkę w położeniu początkowym i odwraca wektor prędkości w osi X
-        """
+        """Reset ball's position and reverse x_speed"""
         self.rect.x, self.rect.y = self.start_x, self.start_y
         self.bounce_x()
 
     def move(self, board, *args):
-        """
-        Przesuwa piłeczkę o wektor prędkości
-        """
+        """Moves ball in direction given by x_speed and y_speed"""
         self.rect.x += self.x_speed
         self.rect.y += self.y_speed
 
@@ -173,8 +197,9 @@ class Ball(Drawable):
                 self.bounce_x()
 
 class Racket(Drawable):
-    """
-    Rakietka, porusza się w osi X z ograniczeniem prędkości.
+    """Racket, moves up/down with board's size and speed constraints.
+    P1 - UP/DOWN ARROWS
+    P2 - MOUSE STEERING/AI as in config file
     """
 
     def __init__(self, width, height, x, y, color, max_speed):
@@ -182,10 +207,8 @@ class Racket(Drawable):
         self.max_speed = max_speed
         self.surface.fill(color)
 
-    def move(self, y):
-        """
-        Przesuwa rakietkę w wyznaczone miejsce.
-        """
+    def move_with_mouse(self, y):
+        """Moves racket's middle point to mouse pointer location"""
         delta = y - self.rect.y
         if abs(delta) > self.max_speed:
             delta = self.max_speed if delta > 0 else -self.max_speed
@@ -193,24 +216,28 @@ class Racket(Drawable):
             self.rect.y + delta >= 0):
             self.rect.y += delta
 
+    def move_with_keys(self):
+        keystate = pygame.key.get_pressed()
+        delta = keystate[pygame.K_DOWN] - keystate[pygame.K_UP]
+        if (self.rect.y + delta <= WINDOW_HEIGHT - self.height and
+            self.rect.y + delta >= 0):
+            self.rect.y += delta
+
+
 
 class Ai(object):
-    """
-    Przeciwnik, steruje swoją rakietką na podstawie obserwacji piłeczki.
-    """
+    """AI always chasing the ball with its center point"""
     def __init__(self, racket, ball):
         self.ball = ball
         self.racket = racket
 
     def move(self):
         y = self.ball.rect.centery - self.racket.height/2
-        self.racket.move(y)
+        self.racket.move_with_mouse(y)
 
 
 class Judge(object):
-    """
-    Sędzia gry
-    """
+    """Judges when and who wins the point and updates score table"""
 
     def __init__(self, board, ball, *args):
         self.ball = ball
@@ -218,15 +245,12 @@ class Judge(object):
         self.rackets = args
         self.score = [0, 0]
 
-        # Przed pisaniem tekstów, musimy zainicjować mechanizmy wyboru fontów PyGame
         pygame.font.init()
         font_path = pygame.font.match_font('arial')
         self.font = pygame.font.Font(font_path, 64)
 
     def update_score(self, board_width):
-        """
-        Jeśli trzeba przydziela punkty i ustawia piłeczkę w początkowym położeniu.
-        """
+        """Gives point when conditions met and resets ball"""
         if self.ball.rect.x < 0:
             self.score[1] += 1
             self.ball.reset()
@@ -236,10 +260,14 @@ class Judge(object):
             self.ball.reset()
             time.sleep(1)
 
+    def reset(self):
+        self.score[0] = 0
+        self.score[1] = 0
+        self.ball.reset()
+        time.sleep(1)
+
     def draw_text(self, surface,  text, x, y):
-        """
-        Rysuje wskazany tekst we wskazanym miejscu
-        """
+        """Draws given text in given location"""
                                 # text, antialias, color
         text = self.font.render(text, True, (150, 150, 150))
         rect = text.get_rect()
@@ -247,9 +275,7 @@ class Judge(object):
         surface.blit(text, rect)
 
     def draw_on(self, surface):
-        """
-        Aktualizuje i rysuje wyniki
-        """
+        """Refreshes and draws score table"""
         height = self.board.surface.get_height()
         width = self.board.surface.get_width()
         self.update_score(width)
